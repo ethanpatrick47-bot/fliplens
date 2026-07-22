@@ -1,3 +1,16 @@
+# FlipLens
+
+FlipLens is a Next.js 15 UI for explaining secondhand marketplace listings with OpenAI vision and structured analysis.
+
+## Run locally
+
+1. Copy `.env.example` to `.env.local` and set `OPENAI_API_KEY`.
+2. Install dependencies with `npm install`.
+3. Start the app with `npm run dev`.
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+The OpenAI key is read only by the server-side `/api/analyze` route. Screenshot inputs are sent as image data to the Responses API. For links, FlipLens uses the URL and any optional page text supplied by the user; it labels facts as uncertain when the listing content is unavailable rather than inventing details.
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

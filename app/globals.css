@@ -1,1 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700&display=swap');
 @import "tailwindcss";
+
+:root {
+	--background: #e9eee6;
+	--foreground: #26342a;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html {
+	background: var(--background);
+}
+
+body {
+	margin: 0;
+	background:
+		radial-gradient(circle at 12% 10%, rgba(255, 255, 255, 0.82), transparent 32%),
+		linear-gradient(135deg, #e7eee5 0%, #f2f2ec 52%, #e2ebe0 100%);
+	color: var(--foreground);
+	font-family: 'DM Sans', sans-serif;
+}
+
+.font-display {
+	font-family: 'Syne', sans-serif;
+}
