@@ -1,0 +1,29 @@
+[Unit]
+Description=FlipLens Next.js application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=karlsubuntu
+WorkingDirectory=/home/karlsubuntu/fliplens
+Environment=NODE_ENV=production
+EnvironmentFile=/home/karlsubuntu/.fliplens.env
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 8790
+Restart=on-failure
+RestartSec=10s
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

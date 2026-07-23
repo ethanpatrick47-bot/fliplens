@@ -3,9 +3,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { convertCurrency, formatMoney, SUPPORTED_CURRENCIES, type SupportedCurrency } from "@/app/lib/currency";
 import { describeCoordinates, estimateTravel, type Coordinates } from "@/app/lib/location";
+import { checkAnalysisRateLimit, rateLimitHeaders } from "@/app/lib/rate-limit";
 
 const MAX_PAGE_TEXT_LENGTH = 24_000;
 const MAX_IMAGE_LENGTH = 16_000_000;
+const MAX_TOTAL_IMAGE_LENGTH = 40_000_000;
+const MAX_REQUEST_LENGTH = 45 * 1024 * 1024;
 const MAX_SCREENSHOTS = 8;
 const MAX_REDIRECTS = 5;
 const FETCH_TIMEOUT_MS = 8_000;
@@ -111,7 +114,23 @@ async function getModelAnalysis(openai: OpenAI, inputText: string, imageDataUrls
 }
 
 export async function POST(request: Request) {
-  if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "FlipLens is almost ready. Add OPENAI_API_KEY to .env.local, then restart the server." }, { status: 500 });
+  const rateLimit = checkAnalysisRateLimit(request);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: rateLimit.scope === "global" ? "FlipLens has reached today’s analysis limit. Try again tomorrow." : "Too many analyses from this connection. Try again later." },
+      { status: 429, headers: rateLimitHeaders(rateLimit) },
+    );
+  }
+
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_LENGTH) {
+    return NextResponse.json({ error: "The screenshots are too large together. Keep the combined upload under 30 MB." }, { status: 413 });
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    const error = process.env.NODE_ENV === "development" ? "Add OPENAI_API_KEY to .env.local, then restart the development server." : "The analysis service is temporarily unavailable.";
+    return NextResponse.json({ error }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
   let body: { imageDataUrl?: unknown; imageDataUrls?: unknown; marketplaceLink?: unknown; pageText?: unknown; preferredCurrency?: unknown; startCity?: unknown; startCoordinates?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 }); }
   const marketplaceLink = typeof body.marketplaceLink === "string" ? body.marketplaceLink.trim() : "";
@@ -121,9 +140,12 @@ export async function POST(request: Request) {
   const preferredCurrency = SUPPORTED_CURRENCIES.includes(body.preferredCurrency as SupportedCurrency) ? body.preferredCurrency as SupportedCurrency : "USD";
   const startCity = typeof body.startCity === "string" ? body.startCity.trim().slice(0, 160) : "";
   const rawCoordinates = body.startCoordinates as Partial<Coordinates> | undefined;
-  const startCoordinates = rawCoordinates && Number.isFinite(rawCoordinates.latitude) && Number.isFinite(rawCoordinates.longitude) ? { latitude: Number(rawCoordinates.latitude), longitude: Number(rawCoordinates.longitude) } : undefined;
+  const latitude = Number(rawCoordinates?.latitude);
+  const longitude = Number(rawCoordinates?.longitude);
+  const startCoordinates = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180 ? { latitude, longitude } : undefined;
   if (!marketplaceLink && !pageText && !imageDataUrls.length) return NextResponse.json({ error: "Provide a marketplace link, listing text, or screenshot." }, { status: 400 });
   if (imageDataUrls.length > MAX_SCREENSHOTS) return NextResponse.json({ error: `Upload no more than ${MAX_SCREENSHOTS} screenshots.` }, { status: 400 });
+  if (imageDataUrls.reduce((total, imageDataUrl) => total + imageDataUrl.length, 0) > MAX_TOTAL_IMAGE_LENGTH) return NextResponse.json({ error: "The screenshots are too large together. Keep the combined upload under 30 MB." }, { status: 413 });
   if (marketplaceLink) { try { const url = new URL(marketplaceLink); if (!["http:", "https:"].includes(url.protocol)) throw new Error(); } catch { return NextResponse.json({ error: "Enter a valid http or https marketplace URL." }, { status: 400 }); } }
   if (imageDataUrls.some((imageDataUrl) => !/^data:image\/(png|jpeg|jpg|webp|heic);base64,/i.test(imageDataUrl) || imageDataUrl.length > MAX_IMAGE_LENGTH)) return NextResponse.json({ error: "Each screenshot must be a supported JPEG, PNG, WebP, or HEIC image smaller than 10 MB." }, { status: 400 });
 

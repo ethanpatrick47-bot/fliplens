@@ -11,10 +11,11 @@ type Analysis = {
   keyDetails: string[]; redFlags: string[]; sellerQuestions: { question: string; reason: string; priority: Priority; turkish: string }[]; overallConfidence: number; confidenceReasons: { label: string; status: "confirmed" | "warning" | "unavailable"; explanation: string }[]; accessWarning: string; screenshotsAnalyzed: number; missingInformation: string[]; sourceCompleteness: string;
 };
 
-type SelectedScreenshot = { id: string; name: string; dataUrl: string };
+type SelectedScreenshot = { id: string; name: string; size: number; dataUrl: string };
 
 const MAX_SCREENSHOTS = 8;
 const MAX_SCREENSHOT_SIZE = 10 * 1024 * 1024;
+const MAX_TOTAL_SCREENSHOT_SIZE = 30 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/heic"];
 
 const currencies: Currency[] = ["USD", "EUR", "GBP", "TRY"];
@@ -47,14 +48,17 @@ export default function Home() {
 
   function handleFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList);
+    let availableBytes = MAX_TOTAL_SCREENSHOT_SIZE - screenshots.reduce((total, screenshot) => total + screenshot.size, 0);
     if (screenshots.length + files.length > MAX_SCREENSHOTS) { setError(`You can analyze up to ${MAX_SCREENSHOTS} screenshots at once.`); }
     files.slice(0, Math.max(0, MAX_SCREENSHOTS - screenshots.length)).forEach((file) => {
       if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) { setError(`${file.name} is not supported. Upload a JPEG, PNG, WebP, or HEIC image.`); return; }
       if (file.size > MAX_SCREENSHOT_SIZE) { setError(`${file.name} is larger than 10 MB. Choose a smaller image.`); return; }
+      if (file.size > availableBytes) { setError("The screenshots are larger than 30 MB together. Remove one or choose smaller images."); return; }
+      availableBytes -= file.size;
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = typeof reader.result === "string" ? reader.result : "";
-        if (dataUrl) setScreenshots((current) => current.length >= MAX_SCREENSHOTS ? current : [...current, { id: `${file.name}-${file.lastModified}-${Math.random()}`, name: file.name, dataUrl }]);
+        if (dataUrl) setScreenshots((current) => current.length >= MAX_SCREENSHOTS ? current : [...current, { id: `${file.name}-${file.lastModified}-${Math.random()}`, name: file.name, size: file.size, dataUrl }]);
       };
       reader.readAsDataURL(file);
     });
@@ -90,19 +94,19 @@ export default function Home() {
             <div className="mb-7 flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#829083]">Start an analysis</p><h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-[#26342a]">What are you looking at?</h2></div><span className="rounded-full bg-[#f0f5ed] px-3 py-1 text-[11px] font-medium text-[#66846d]">Beta</span></div>
             <fieldset disabled={isLoading} className="min-w-0 border-0 p-0 disabled:opacity-70"><label className="block text-sm font-semibold text-[#3a493d]" htmlFor="marketplace-link">Paste Marketplace Link<div className="mt-2 flex items-center rounded-xl border border-[#d6ded4] bg-[#fbfcfa] focus-within:border-[#78a87f] focus-within:ring-4 focus-within:ring-[#e8f1e6]"><span className="pl-4 text-[#8b988d]">↗</span><input id="marketplace-link" type="url" value={marketplaceLink} onChange={(event) => setMarketplaceLink(event.target.value)} placeholder="https://marketplace.com/listing..." className="min-w-0 flex-1 bg-transparent px-3 py-3.5 text-sm text-[#26342a] outline-none placeholder:text-[#a7b1a8]" /></div><span className="mt-2 block text-[11px] font-normal text-[#99a49a]">Optional: paste visible page text if the marketplace is behind a login.</span><textarea aria-label="Optional marketplace page text" value={pageText} onChange={(event) => setPageText(event.target.value)} placeholder="Optional listing text..." rows={2} className="mt-2 w-full resize-none rounded-xl border border-[#d6ded4] bg-[#fbfcfa] px-4 py-3 text-sm font-normal text-[#26342a] outline-none placeholder:text-[#a7b1a8]" /></label>
               <div className="my-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a2aca3]"><span className="h-px flex-1 bg-[#e4e9e2]" /> or <span className="h-px flex-1 bg-[#e4e9e2]" /></div>
-              <label htmlFor="listing-screenshot" onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={handleDrop} className={`block cursor-pointer rounded-xl border border-dashed p-6 text-center ${isDragging ? "border-[#5f9369] bg-[#eef6eb]" : "border-[#cbd8c9] bg-[#f7faf5] hover:border-[#82aa88]"}`}><span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-[#6c9772] shadow-sm">↑</span><span className="mt-3 block text-sm font-semibold text-[#425345]">Upload Screenshots</span><span className="mt-1 block text-xs text-[#89968b]">Drop images here, or browse · JPEG, PNG, WebP, HEIC · max 10 MB each</span><input id="listing-screenshot" type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" className="sr-only" onChange={handleFileChange} /></label>
+              <label htmlFor="listing-screenshot" onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={handleDrop} className={`block cursor-pointer rounded-xl border border-dashed p-6 text-center ${isDragging ? "border-[#5f9369] bg-[#eef6eb]" : "border-[#cbd8c9] bg-[#f7faf5] hover:border-[#82aa88]"}`}><span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-[#6c9772] shadow-sm">↑</span><span className="mt-3 block text-sm font-semibold text-[#425345]">Upload Screenshots</span><span className="mt-1 block text-xs text-[#89968b]">Drop images here, or browse · JPEG, PNG, WebP, HEIC · max 10 MB each / 30 MB total</span><input id="listing-screenshot" type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" className="sr-only" onChange={handleFileChange} /></label>
               {screenshots.length > 0 && <div className="mt-3"><p className="text-xs font-semibold text-[#54715b]">{screenshots.length} screenshot{screenshots.length === 1 ? "" : "s"} selected</p><div className="mt-2 grid grid-cols-4 gap-2">{screenshots.map((screenshot, index) => <div key={screenshot.id} className="relative aspect-square overflow-hidden rounded-lg border border-[#d6ded4] bg-[#f1f5ef]"><img src={screenshot.dataUrl} alt={`Listing screenshot ${index + 1}: ${screenshot.name}`} className="h-full w-full object-cover" /><button type="button" aria-label={`Remove ${screenshot.name}`} onClick={() => setScreenshots((current) => current.filter((item) => item.id !== screenshot.id))} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#26342a]/80 text-sm text-white hover:bg-[#26342a]">×</button><span className="absolute bottom-1 left-1 rounded bg-[#26342a]/75 px-1.5 py-0.5 text-[10px] font-semibold text-white">{index + 1}</span></div>)}</div></div>}
               <div className="mt-5 grid grid-cols-[1fr_auto] gap-2"><label className="text-xs font-semibold text-[#3a493d]">Preferred currency<select value={preferredCurrency} onChange={(event) => setPreferredCurrency(event.target.value as Currency)} className="mt-2 block w-full rounded-xl border border-[#d6ded4] bg-[#fbfcfa] px-3 py-3 text-sm font-normal outline-none">{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label><div className="flex items-end"><button type="button" onClick={useMyLocation} className="rounded-xl border border-[#cbd8c9] px-3 py-3 text-xs font-semibold text-[#54715b] hover:bg-[#eef6eb]">Use my location</button></div></div>
               <label className="mt-4 block text-xs font-semibold text-[#3a493d]">Starting city <input value={startCity} onChange={(event) => { setStartCity(event.target.value); setStartCoordinates(undefined); }} placeholder="Optional, e.g. Istanbul" className="mt-2 block w-full rounded-xl border border-[#d6ded4] bg-[#fbfcfa] px-4 py-3 text-sm font-normal outline-none" /></label>{locationStatus && <p className="mt-2 text-[11px] text-[#7b887d]">{locationStatus}</p>}
               <button type="button" onClick={analyzeListing} disabled={isLoading} className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-[#376c45] px-5 py-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(55,108,69,0.2)] hover:bg-[#2d5d3a] disabled:cursor-wait disabled:opacity-70">{isLoading ? (screenshots.length > 0 ? `Analyzing ${screenshots.length} screenshot${screenshots.length === 1 ? "" : "s"}…` : "Reading listing…") : "Analyze Listing"}{isLoading ? <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <span aria-hidden="true" className="text-lg">→</span>}</button>
-            </fieldset><p className="mt-4 text-center text-[11px] text-[#a0aaa1]">No account needed · Your data stays yours</p>
+            </fieldset><p className="mt-4 text-center text-[11px] text-[#a0aaa1]">No account needed · Inputs are processed by OpenAI and mapping providers</p>
           </div></div>
         </section>
 
         {error && <section className="px-6 pb-8 sm:px-14 lg:px-24"><div role="alert" className="rounded-2xl border border-[#ecd5cb] bg-[#fff5f1] p-5 text-sm text-[#925348]"><p className="font-semibold">We could not complete that analysis.</p><p className="mt-1 leading-relaxed">{error}</p><button type="button" onClick={retry} className="mt-4 rounded-lg bg-[#925348] px-4 py-2 text-xs font-semibold text-white">Try again</button></div></section>}
 
         {analysis && <Results analysis={analysis} resultsRef={resultsRef} headingRef={resultsHeadingRef} onBackToTop={() => document.getElementById("top")?.scrollIntoView({ behavior: "smooth" })} />}
-        <footer className="flex flex-col gap-2 border-t border-[#d9ddd4] px-6 py-5 text-xs text-[#8a968c] sm:flex-row sm:items-center sm:justify-between sm:px-10"><span>Make the next good deal a little clearer.</span><span className="font-medium text-[#6c7b6e]">FlipLens © 2026</span></footer>
+        <footer className="flex flex-col gap-2 border-t border-[#d9ddd4] px-6 py-5 text-xs text-[#8a968c] sm:flex-row sm:items-center sm:justify-between sm:px-10"><span>Make the next good deal a little clearer. Location data © <a className="underline hover:text-[#536155]" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>.</span><span className="font-medium text-[#6c7b6e]">FlipLens © 2026</span></footer>
       </div>
     </main>
   );
