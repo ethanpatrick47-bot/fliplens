@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const ready = Boolean(process.env.OPENAI_API_KEY);
+  const ready = Boolean(process.env.GEMINI_API_KEY);
   return NextResponse.json(
     {
       service: "fliplens",

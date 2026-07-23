@@ -17,7 +17,7 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$app_dir"
-OPENAI_API_KEY="smoke-test-only" \
+GEMINI_API_KEY="smoke-test-only" \
 FLIPLENS_PER_IP_HOURLY_LIMIT=10 \
 FLIPLENS_GLOBAL_DAILY_LIMIT=100 \
 npm run start -- --hostname 127.0.0.1 --port "$port" >"$log_file" 2>&1 &
