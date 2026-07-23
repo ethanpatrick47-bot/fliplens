@@ -6,10 +6,11 @@ port="${PORT:-8790}"
 base_url="http://127.0.0.1:${port}"
 log_file="$(mktemp /tmp/fliplens-smoke.XXXXXX.log)"
 app_pid=""
+app_pgid=""
 
 cleanup() {
-  if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
-    kill "$app_pid"
+  if [[ -n "$app_pgid" ]] && kill -0 -- "-$app_pgid" 2>/dev/null; then
+    kill -TERM -- "-$app_pgid"
     wait "$app_pid" 2>/dev/null || true
   fi
   rm -f "$log_file"
@@ -17,11 +18,13 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$app_dir"
+setsid env \
 GEMINI_API_KEY="smoke-test-only" \
 FLIPLENS_PER_IP_HOURLY_LIMIT=10 \
 FLIPLENS_GLOBAL_DAILY_LIMIT=100 \
 npm run start -- --hostname 127.0.0.1 --port "$port" >"$log_file" 2>&1 &
 app_pid=$!
+app_pgid=$app_pid
 
 for _ in $(seq 1 30); do
   if curl --fail --silent --show-error "$base_url/api/health" >/dev/null; then
