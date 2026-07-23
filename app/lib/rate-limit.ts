@@ -14,7 +14,7 @@ export type RateLimitDecision = {
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const ipBuckets = new Map<string, Bucket>();
-let globalBucket: Bucket = { count: 0, resetAt: Date.now() + DAY_MS };
+const globalBucket: Bucket = { count: 0, resetAt: Date.now() + DAY_MS };
 
 function positiveInteger(name: string, fallback: number) {
   const value = Number(process.env[name]);
